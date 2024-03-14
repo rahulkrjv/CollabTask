@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Task</title>
+</head>
+<body>
+    <h2>Create Task</h2>
+    <form method="POST" action="{{ url_for('create_task') }}">
+        <label for="title">Title:</label><br>
+        <input type="text" id="title" name="title" required><br>
+        <label for="description">Description:</label><br>
+        <textarea id="description" name="description" required></textarea><br>
+        <label for="assignee">Assignee:</label><br>
+        <select id="assignee" name="assignee" required>
+            {% for user in users %}
+                <option value="{{ user._id }}">{{ user.username }}</option>
+            {% endfor %}
+        </select><br>
+        <label for="due_date">Due Date:</label><br>
+        <input type="text" id="due_date" name="due_date" required><br>
+        <button type="submit">Create Task</button>
+    </form>
+</body>
+</html>

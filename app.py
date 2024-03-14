@@ -8,13 +8,12 @@ import string
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Email, EqualTo
-from flask_login import current_user
 from bson.objectid import ObjectId
 from datetime import datetime
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
-app.config['MONGO_URI'] = 'mongodb://localhost:27017/project_management'
+app.config['MONGO_URI'] = 'mongodb+srv://adarshmishra:1234@messportal.qrkbtya.mongodb.net/'
 app.config['MAIL_SERVER'] = 'smtp.example.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -207,9 +206,9 @@ def search():
     return render_template('search.html')
 
 # Task Filtering and Sorting
-@app.route('/dashboard', methods=['GET', 'POST'])
+@app.route('/dashboard_filter_sort', methods=['GET', 'POST'])
 @login_required
-def dashboard():
+def dashboard_filter_sort():
     user_tasks = mongo.db.tasks.find({'assignee_id': ObjectId(current_user.get_id())})
     if request.method == 'POST':
         # Get filter and sort parameters from form submission
@@ -317,9 +316,9 @@ def internal_error(error):
     return render_template('errors/500.html'), 500
 
 # Pagination
-@app.route('/dashboard', methods=['GET', 'POST'])
+@app.route('/dashboard_pagination', methods=['GET', 'POST'])
 @login_required
-def dashboard():
+def dashboard_pagination():
     page = request.args.get('page', 1, type=int)
     user_tasks = Task.query.filter_by(assignee_id=current_user.id).paginate(page, per_page=10)
     return render_template('dashboard.html', tasks=user_tasks)
