@@ -1,7 +1,12 @@
 {
     "param": {
       "gmail-user": "fittrack2@gmail.com",
-      "gmail-password": "ksdvgulnzqkcjpgj"
+      "gmail-password": "ksdvgulnzqkcjpgj",
+      "MONGO_URI": "mongodb+srv://adarshmishra:1234@messportal.qrkbtya.mongodb.net/",
+      "MAIL_PORT": 587,
+      "MAIL_SERVER": "smtp.gmail.com",
+      "SECRET_KEY": "no keys",
+      "MAIL_USE_TLS": true
     }
   }
   
