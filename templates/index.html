@@ -1,14 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Homepage</title>
+    <title>CollabTask</title>
+    <!-- Include Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-    <h1>Welcome to Your Application!</h1>
-    <p>This is the homepage of your application.</p>
-    <p>You can customize this page as needed.</p>
+
+<body class="bg-gray-100">
+    <header class="bg-white shadow-md py-4">
+        <div class="container mx-auto flex items-center justify-between px-4">
+            <!-- CollabTask Logo -->
+            <div>
+                <img src="./static/logo.png" alt="CollabTask">
+                <h1 class="text-lg font-bold">CollabTask</h1>
+            </div>
+            <!-- Navigation Links -->
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="#" class="text-gray-700 hover:text-blue-500">Login</a></li>
+                    <li><a href="#" class="text-gray-700 hover:text-blue-500">Register</a></li>
+                    <li><a href="#" class="text-gray-700 hover:text-blue-500">Reset Password</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    <main class="container mx-auto mt-8 px-4 py-4">
+        <!-- Hero Section -->
+        <section class="text-center">
+            <h2 class="text-3xl font-bold mb-4">Streamline Your Team's Workflow with CollabTask</h2>
+            <p class="py-4 space-y-4">CollabTask is the ultimate solution for streamlining project management. Our web-based application offers a range of features to help teams work more efficiently, including task management, user authentication, and team collaboration. Our sleek and user-friendly platform is designed to help you stay on top of your projects with ease, no matter where you are. Join the thousands of teams that rely on CollabTask to get things done.</p>
+            <img src="./static/hero-image.webp" alt="Hero Image" class="mx-auto mb-8 rounded-lg shadow-md">
+            <!-- Features -->
+            <h2 class="font-bold text-2xl space-y-4">Features</h2>
+            <ul class="grid grid-cols-1 md:grid-cols-3 gap-4 space-y-4">
+                <li class="bg-white rounded-lg p-6 shadow-md">
+                    <h3 class="text-xl font-semibold mb-2">User Registration</h3>
+                    <p class="text-gray-700">Easily onboard team members by registering them on CollabTask.</p>
+                </li>
+                <li class="bg-white rounded-lg p-6 shadow-md ">
+                    <h3 class="text-xl font-semibold mb-2">Task Creation</h3>
+                    <p class="text-gray-700">Effortlessly create and assign tasks to streamline your projects.</p>
+                </li>
+                <li class="bg-white rounded-lg p-6 shadow-md ">
+                    <h3 class="text-xl font-semibold mb-2">Team Management</h3>
+                    <p class="text-gray-700">Manage your team efficiently with CollabTask's team management features.</p>
+                </li>
+            </ul>
+            <!-- CTA Button -->
+            <div class="mt-8">
+                <a href="#" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">Get Started</a>
+            </div>
+        </section>
+    </main>
 </body>
+
 </html>
