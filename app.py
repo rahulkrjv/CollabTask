@@ -167,34 +167,6 @@ def profile():
         form.email.data = current_user.user_data['email']
     return render_template('profile.html', form=form)
 
-@app.route('/reset_password_request', methods=['GET', 'POST'])
-def reset_password_request():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    form = ResetPasswordRequestForm()
-    if form.validate_on_submit():
-        user = mongo.db.users.find_one({'email': form.email.data})
-        if user:
-            send_password_reset_email(form.email.data)
-        flash('Check your email for the instructions to reset your password', 'info')
-        return redirect(url_for('login'))
-    return render_template('reset_password_request.html', title='Reset Password', form=form)
-
-@app.route('/reset_password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    user = User.verify_reset_password_token(token)
-    if not user:
-        return redirect(url_for('index'))
-    form = ResetPasswordForm()
-    if form.validate_on_submit():
-        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
-        mongo.db.users.update_one({'_id': user['_id']}, {'$set': {'password': hashed_password}})
-        flash('Your password has been reset.', 'success')
-        return redirect(url_for('login'))
-    return render_template('reset_password.html', form=form)
-
 @app.route('/update_task_status/<task_id>/<status>', methods=['POST'])
 @login_required
 def update_task_status(task_id, status):
