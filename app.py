@@ -76,9 +76,9 @@ class TaskForm(FlaskForm):
     due_date = StringField('Due Date', validators=[DataRequired()])
     submit = SubmitField('Create Task')
 
-@app.route('/home')
-def home():
-    return redirect(url_for('index'))
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
