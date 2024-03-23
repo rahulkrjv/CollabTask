@@ -167,6 +167,7 @@ def profile():
         form.email.data = current_user.user_data['email']
     return render_template('profile.html', form=form)
 
+
 @app.route('/update_task_status/<task_id>/<status>', methods=['POST'])
 @login_required
 def update_task_status(task_id, status):
