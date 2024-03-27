@@ -11,7 +11,7 @@ from bson.objectid import ObjectId
 import datetime
 import unittest
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, SelectField, EmailField
+from wtforms import StringField, PasswordField, SubmitField, SelectField, EmailField, DateField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo
 from functools import wraps
 from flask import abort
@@ -98,9 +98,9 @@ class ProfileForm(FlaskForm):
 
 class TaskForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired()])
-    description = StringField('Description', validators=[DataRequired()])
-    assignee = SelectField('Assignee', coerce=str, validators=[DataRequired()])
-    due_date = StringField('Due Date', validators=[DataRequired()])
+    description = TextAreaField('Description', validators=[DataRequired()])
+    assignee = SelectField('Assignee', choices=[], coerce=str)
+    due_date = DateField('Due Date', validators=[DataRequired()], format='%Y-%m-%d')
     submit = SubmitField('Create Task')
 
 @app.route('/')
@@ -226,21 +226,27 @@ def dashboard():
 @app.route('/create_task', methods=['GET', 'POST'])
 @login_required
 def create_task():
-    if request.method == 'POST':
-        form = TaskForm()
-        if form.validate_on_submit():
-            title = form.title.data
-            description = form.description.data
-            assignee_id = form.assignee.data
-            due_date = form.due_date.data
-            task_data = {'title': title, 'description': description, 'assignee_id': assignee_id, 'due_date': due_date, 'status': 'To Do'}
+    form = TaskForm()
+    users = list(db.users.find())
+    form.assignee.choices = [('', 'None')] + [(str(user['_id']), user['username']) for user in users]
+
+    if form.validate_on_submit():
+        task_data = {
+            'title': form.title.data,
+            'description': form.description.data,
+            'assignee_id': form.assignee.data,
+            'due_date': datetime.datetime.combine(form.due_date.data, datetime.datetime.min.time()),
+            'status': 'To Do',
+            'user_id': str(current_user.get_id())
+        }
+        try:
             db.tasks.insert_one(task_data)
             flash('Task has been created!', 'success')
             return redirect(url_for('dashboard'))
-    users = db.users.find()
-    form = TaskForm()
-    form.assignee.choices = [(str(user['_id']), user['username']) for user in users]
-    return render_template('create_task.html', users=users, form=form)
+        except Exception as e:
+            print(e)
+            flash('Error creating task', 'danger')
+    return render_template('create_task.html', form=form, users=users)
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required

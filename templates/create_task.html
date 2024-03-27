@@ -5,23 +5,54 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Task</title>
+    <!-- Include Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body>
-    <h2>Create Task</h2>
-    <form method="POST" action="{{ url_for('create_task') }}">
-        <label for="title">Title:</label><br>
-        <input type="text" id="title" name="title" required><br>
-        <label for="description">Description:</label><br>
-        <textarea id="description" name="description" required></textarea><br>
-        <label for="assignee">Assignee:</label><br>
-        <select id="assignee" name="assignee" required>
-            {% for user in users %}
-                <option value="{{ user._id }}">{{ user.username }}</option>
-            {% endfor %}
-        </select><br>
-        <label for="due_date">Due Date:</label><br>
-        <input type="text" id="due_date" name="due_date" required><br>
-        <button type="submit">Create Task</button>
-    </form>
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="bg-gray-800 text-gray-200 w-1/5 py-8">
+            <!-- CollabTask Logo and Name -->
+            <div class="px-4 mb-8">
+                <img src="./static/logo.png" alt="CollabTask Logo" class="w-16 h-16 mb-2">
+                <h2 class="text-lg font-bold">CollabTask</h2>
+            </div>
+            <!-- Navigation Links -->
+            <ul class="space-y-4">
+                <li><a href="#" class="block px-4 py-2 hover:bg-gray-700">Tasks</a></li>
+                <li><a href="#" class="block px-4 py-2 hover:bg-gray-700">Teams</a></li>
+                <li><a href="#" class="block px-4 py-2 hover:bg-gray-700">Profile Settings</a></li>
+            </ul>
+        </aside>
+        <!-- Main Content Area -->
+        <main class="w-4/5 p-8">
+            <h2 class="text-2xl font-bold mb-4">Create New Task</h2>
+            <form method="POST" action="{{ url_for('create_task') }}">
+                {{ form.csrf_token }}
+                <div class="mb-4">
+                    <label for="title" class="block font-medium mb-1">Title:</label>
+                    <input type="text" id="title" name="title" class="border border-gray-400 p-2 w-full" required>
+                </div>
+                <div class="mb-4">
+                    <label for="description" class="block font-medium mb-1">Description:</label>
+                    <textarea id="description" name="description" class="border border-gray-400 p-2 w-full" required></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="assignee" class="block font-medium mb-1">Assignee:</label>
+                    <select id="assignee" name="assignee" class="border border-gray-400 p-2 w-full" required>
+                        <option value="">Select a user</option>
+                        {% for user in users %}
+                            <option value="{{ user['_id'] }}">{{ user.username }}</option>
+                        {% endfor %}
+                    </select>                                   
+                </div>
+                <div class="mb-4">
+                    <label for="due_date" class="block font-medium mb-1">Due Date:</label>
+                    <input type="date" id="due_date" name="due_date" class="border border-gray-400 p-2 w-full" required>
+                </div>
+                <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">Create Task</button>
+            </form>
+        </main>
+    </div>
 </body>
 </html>
