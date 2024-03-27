@@ -41,9 +41,22 @@ mail = Mail(app)
 client = MongoClient(params['MONGO_URI'])
 db = client["CollabTask"]  # Connect to the "CollabTask" database
 
+class ObjectIdEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, ObjectId):
+            return str(o)
+        return super().default(o)
+
+# use the custom encoder when serializing to JSON
+app.json_encoder = ObjectIdEncoder
+
 @login_manager.user_loader
 def load_user(user_id):
-    return db.users.find_one({'_id': ObjectId(user_id)})
+    user = db.users.find_one({'_id': ObjectId(user_id)})
+    if user:
+        return User(user)
+    return None
+
 
 class User(UserMixin):
     def __init__(self, user_data):
@@ -51,6 +64,19 @@ class User(UserMixin):
 
     def get_id(self):
         return ObjectId(self.user_data['_id'])
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return self.user_data.get('active', False)
+
+    @property
+    def is_anonymous(self):
+        return False
+
 
 class ResetPasswordRequestForm(FlaskForm):
     email = EmailField('Email', validators=[DataRequired(), Email()])
@@ -101,7 +127,8 @@ def signup():
                 otp = generate_otp()
 
                 # Update user's OTP in the database
-                db.users.update_one({'_id': existing_user['_id']}, {'$set': {'otp': otp}})
+                db.users.update_one({'_id': existing_user['_id']}, {'$set': {'otp': bcrypt.generate_password_hash(otp).decode('utf-8')
+                }})
 
                 # Send OTP via email
                 msg = Message('Verify Your Email', sender=app.config['MAIL_USERNAME'], recipients=[email])
@@ -121,7 +148,7 @@ def signup():
         mail.send(msg)
 
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        user_data = {'username': username, 'email': email, 'password': hashed_password, 'otp': otp, 'verified': False}
+        user_data = {'username': username, 'email': email, 'password': hashed_password, 'otp': bcrypt.generate_password_hash(otp).decode('utf-8'), 'verified': False}
         db.users.insert_one(user_data)
         
         flash('A verification OTP has been sent to your email. Please check and enter it below.', 'success')
@@ -140,8 +167,8 @@ def verify():
         otp = request.form['otp']
         email = session.get('email')
 
-        user = db.users.find_one({'email': email, 'otp': otp})
-        if user:
+        user = db.users.find_one({'email': email})
+        if user and bcrypt.check_password_hash(user['otp'], otp):
             db.users.update_one({'_id': user['_id']}, {'$set': {'verified': True}})
             flash('Your email has been verified. You can now log in.', 'success')
             return redirect(url_for('login'))
@@ -163,7 +190,7 @@ def resend_otp():
     otp = generate_otp()
 
     # Update user's OTP in the database
-    db.users.update_one({'_id': user['_id']}, {'$set': {'otp': otp}})
+    db.users.update_one({'_id': user['_id']}, {'$set': {'otp': bcrypt.generate_password_hash(otp).decode('utf-8')}})
 
     # Send OTP via email
     msg = Message('Verify Your Email', sender=app.config['MAIL_USERNAME'], recipients=[email])
