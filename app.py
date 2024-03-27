@@ -18,6 +18,7 @@ from flask import abort
 import os
 from werkzeug.utils import secure_filename
 from pytz import utc
+import email_validator
 
 app = Flask(__name__)
 
@@ -286,8 +287,8 @@ def send_email(recipient, subject, body):
 # Route for password reset request
 @app.route('/reset_password_request', methods=['GET', 'POST'])
 def reset_password_request():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
+    # if current_user.is_authenticated:
+    #     return redirect(url_for('index'))
     form = ResetPasswordRequestForm()
     if form.validate_on_submit():
         user = db.users.find_one({'email': form.email.data})
