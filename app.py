@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import *
 from flask_pymongo import PyMongo
 from pymongo import MongoClient
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -8,15 +8,17 @@ import secrets
 import string
 import json
 from bson.objectid import ObjectId
-from datetime import datetime
+import datetime
 import unittest
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, SelectField, EmailField
+from wtforms import StringField, PasswordField, SubmitField, SelectField, EmailField, DateField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo
 from functools import wraps
 from flask import abort
 import os
 from werkzeug.utils import secure_filename
+from pytz import utc
+import email_validator
 
 app = Flask(__name__)
 
@@ -40,9 +42,22 @@ mail = Mail(app)
 client = MongoClient(params['MONGO_URI'])
 db = client["CollabTask"]  # Connect to the "CollabTask" database
 
+class ObjectIdEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, ObjectId):
+            return str(o)
+        return super().default(o)
+
+# use the custom encoder when serializing to JSON
+app.json_encoder = ObjectIdEncoder
+
 @login_manager.user_loader
 def load_user(user_id):
-    return mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    user = db.users.find_one({'_id': ObjectId(user_id)})
+    if user:
+        return User(user)
+    return None
+
 
 class User(UserMixin):
     def __init__(self, user_data):
@@ -50,6 +65,19 @@ class User(UserMixin):
 
     def get_id(self):
         return ObjectId(self.user_data['_id'])
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return self.user_data.get('active', False)
+
+    @property
+    def is_anonymous(self):
+        return False
+
 
 class ResetPasswordRequestForm(FlaskForm):
     email = EmailField('Email', validators=[DataRequired(), Email()])
@@ -71,9 +99,9 @@ class ProfileForm(FlaskForm):
 
 class TaskForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired()])
-    description = StringField('Description', validators=[DataRequired()])
-    assignee = SelectField('Assignee', coerce=str, validators=[DataRequired()])
-    due_date = StringField('Due Date', validators=[DataRequired()])
+    description = TextAreaField('Description', validators=[DataRequired()])
+    assignee = SelectField('Assignee', choices=[], coerce=str)
+    due_date = DateField('Due Date', validators=[DataRequired()], format='%Y-%m-%d')
     submit = SubmitField('Create Task')
 
 @app.route('/')
@@ -87,6 +115,31 @@ def signup():
         email = request.form['email']
         password = request.form['password']
 
+        session['email'] = email
+
+        # Check if a user with the same email address already exists
+        existing_user = db.users.find_one({'email': email})
+        if existing_user:
+            if existing_user['verified']:
+                flash('Your email has already been verified. You can log in now.', 'success')
+                return redirect(url_for('login'))
+            else:
+                # Generate new OTP
+                otp = generate_otp()
+
+                # Update user's OTP in the database
+                db.users.update_one({'_id': existing_user['_id']}, {'$set': {'otp': bcrypt.generate_password_hash(otp).decode('utf-8')
+                }})
+
+                # Send OTP via email
+                msg = Message('Verify Your Email', sender=app.config['MAIL_USERNAME'], recipients=[email])
+                msg.body = f'Your OTP for verification: {otp}'
+                mail.send(msg)
+                session['expiry_time'] = utc.localize(datetime.datetime.utcnow()) + datetime.timedelta(minutes=5)
+
+                flash('A new verification OTP has been sent to your email. Please check and enter it below.', 'success')
+                return redirect(url_for('verify'))
+
         # Generate OTP
         otp = generate_otp()
 
@@ -96,31 +149,63 @@ def signup():
         mail.send(msg)
 
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        user_data = {'username': username, 'email': email, 'password': hashed_password, 'otp': otp, 'verified': False}
-        mongo.db.users.insert_one(user_data)
+        user_data = {'username': username, 'email': email, 'password': hashed_password, 'otp': bcrypt.generate_password_hash(otp).decode('utf-8'), 'verified': False}
+        db.users.insert_one(user_data)
+        
         flash('A verification OTP has been sent to your email. Please check and enter it below.', 'success')
+
+        session['expiry_time'] = utc.localize(datetime.datetime.utcnow()) + datetime.timedelta(minutes=5)
+
         return redirect(url_for('verify'))
     return render_template('signup.html')
 
 @app.route('/verify', methods=['GET', 'POST'])
 def verify():
     if request.method == 'POST':
+        if 'expiry_time' in session and utc.localize(datetime.datetime.utcnow()) > session['expiry_time']:
+            return "OTP expired. Please register again."
+        
         otp = request.form['otp']
-        user = mongo.db.users.find_one({'email': current_user.user_data['email'], 'otp': otp})
-        if user:
-            mongo.db.users.update_one({'_id': user['_id']}, {'$set': {'verified': True}})
+        email = session.get('email')
+
+        user = db.users.find_one({'email': email})
+        if user and bcrypt.check_password_hash(user['otp'], otp):
+            db.users.update_one({'_id': user['_id']}, {'$set': {'verified': True}})
             flash('Your email has been verified. You can now log in.', 'success')
             return redirect(url_for('login'))
         else:
             flash('Invalid OTP. Please try again.', 'danger')
     return render_template('verify.html')
 
+@app.route('/resend_otp', methods=['POST'])
+def resend_otp():
+    email = request.json.get('email')
+    if not email:
+        return jsonify({'success': False, 'message': 'Email is required.'}), 400
+
+    user = db.users.find_one({'email': email})
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found.'}), 404
+
+    # Generate new OTP
+    otp = generate_otp()
+
+    # Update user's OTP in the database
+    db.users.update_one({'_id': user['_id']}, {'$set': {'otp': bcrypt.generate_password_hash(otp).decode('utf-8')}})
+
+    # Send OTP via email
+    msg = Message('Verify Your Email', sender=app.config['MAIL_USERNAME'], recipients=[email])
+    msg.body = f'Your OTP for verification: {otp}'
+    mail.send(msg)
+
+    return jsonify({'success': True, 'message': 'OTP has been resent to your email address.'}), 200
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        user = mongo.db.users.find_one({'email': email})
+        user = db.users.find_one({'email': email})
         if user and bcrypt.check_password_hash(user['password'], password) and user['verified']:
             login_user(User(user))
             return redirect(url_for('dashboard'))
@@ -136,34 +221,40 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    user_tasks = mongo.db.tasks.find({'assignee_id': str(current_user.get_id())})
+    user_tasks = db.tasks.find({'assignee_id': str(current_user.get_id())})
     return render_template('dashboard.html', tasks=user_tasks)
 
 @app.route('/create_task', methods=['GET', 'POST'])
 @login_required
 def create_task():
-    if request.method == 'POST':
-        form = TaskForm()
-        if form.validate_on_submit():
-            title = form.title.data
-            description = form.description.data
-            assignee_id = form.assignee.data
-            due_date = form.due_date.data
-            task_data = {'title': title, 'description': description, 'assignee_id': assignee_id, 'due_date': due_date, 'status': 'To Do'}
-            mongo.db.tasks.insert_one(task_data)
+    form = TaskForm()
+    users = list(db.users.find())
+    form.assignee.choices = [('', 'None')] + [(str(user['_id']), user['username']) for user in users]
+
+    if form.validate_on_submit():
+        task_data = {
+            'title': form.title.data,
+            'description': form.description.data,
+            'assignee_id': form.assignee.data,
+            'due_date': datetime.datetime.combine(form.due_date.data, datetime.datetime.min.time()),
+            'status': 'To Do',
+            'user_id': str(current_user.get_id())
+        }
+        try:
+            db.tasks.insert_one(task_data)
             flash('Task has been created!', 'success')
             return redirect(url_for('dashboard'))
-    users = mongo.db.users.find()
-    form = TaskForm()
-    form.assignee.choices = [(str(user['_id']), user['username']) for user in users]
-    return render_template('create_task.html', users=users, form=form)
+        except Exception as e:
+            print(e)
+            flash('Error creating task', 'danger')
+    return render_template('create_task.html', form=form, users=users)
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
     form = ProfileForm()
     if form.validate_on_submit():
-        mongo.db.users.update_one({'_id': ObjectId(current_user.get_id())}, {'$set': {'username': form.username.data, 'email': form.email.data}})
+        db.users.update_one({'_id': ObjectId(current_user.get_id())}, {'$set': {'username': form.username.data, 'email': form.email.data}})
         flash('Profile updated successfully', 'success')
         return redirect(url_for('profile'))
     elif request.method == 'GET':
@@ -176,14 +267,14 @@ def profile():
 @login_required
 def update_task_status(task_id, status):
     # Update task status in the database
-    mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'status': status}})
+    db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'status': status}})
     flash('Task status updated successfully', 'success')
     return redirect(url_for('dashboard'))
 
 @app.route('/task_details/<task_id>')
 @login_required
 def task_details(task_id):
-    task = mongo.db.tasks.find_one({'_id': ObjectId(task_id)})
+    task = db.tasks.find_one({'_id': ObjectId(task_id)})
     return render_template('task_details.html', task=task)
 
 # Function to send email notification
@@ -196,11 +287,11 @@ def send_email(recipient, subject, body):
 # Route for password reset request
 @app.route('/reset_password_request', methods=['GET', 'POST'])
 def reset_password_request():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
+    # if current_user.is_authenticated:
+    #     return redirect(url_for('index'))
     form = ResetPasswordRequestForm()
     if form.validate_on_submit():
-        user = mongo.db.users.find_one({'email': form.email.data})
+        user = db.users.find_one({'email': form.email.data})
         if user:
             send_password_reset_email(user)
         flash('Check your email for the instructions to reset your password', 'info')
@@ -218,7 +309,7 @@ def reset_password(token):
     form = ResetPasswordForm()
     if form.validate_on_submit():
         hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
-        mongo.db.users.update_one({'_id': ObjectId(user.get_id())}, {'$set': {'password': hashed_password}})
+        db.users.update_one({'_id': ObjectId(user.get_id())}, {'$set': {'password': hashed_password}})
         flash('Your password has been reset.', 'success')
         return redirect(url_for('login'))
     return render_template('reset_password.html', form=form)
@@ -230,7 +321,7 @@ def search():
     if request.method == 'POST':
         search_query = request.form['search_query']
         # Perform search in tasks collection based on search_query
-        tasks = mongo.db.tasks.find({'$text': {'$search': search_query}})
+        tasks = db.tasks.find({'$text': {'$search': search_query}})
         return render_template('search_results.html', tasks=tasks)
     return render_template('search.html')
 
@@ -238,7 +329,7 @@ def search():
 @app.route('/dashboard_filter_sort', methods=['GET', 'POST'])
 @login_required
 def dashboard_filter_sort():
-    user_tasks = mongo.db.tasks.find({'assignee_id': str(current_user.get_id())})
+    user_tasks = db.tasks.find({'assignee_id': str(current_user.get_id())})
     if request.method == 'POST':
         # Get filter and sort parameters from form submission
         filter_criteria = request.form.get('filter_criteria')
@@ -281,14 +372,14 @@ class TaskComment:
 @app.route('/add_comment/<task_id>', methods=['POST'])
 @login_required
 def add_comment(task_id):
-    task = mongo.db.tasks.find_one({'_id': ObjectId(task_id)})
+    task = db.tasks.find_one({'_id': ObjectId(task_id)})
     comment_text = request.form.get('comment')
     if comment_text:
         new_comment = TaskComment(comment=comment_text, user=current_user, task=task)
-        task_comments = mongo.db.tasks.find_one({'_id': ObjectId(task_id)}, {'comments': 1})
+        task_comments = db.tasks.find_one({'_id': ObjectId(task_id)}, {'comments': 1})
         comments = task_comments.get('comments', [])
         comments.append(new_comment)
-        mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'comments': comments}})
+        db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'comments': comments}})
         flash('Comment added successfully.', 'success')
     else:
         flash('Cannot add empty comment.', 'warning')
@@ -304,7 +395,7 @@ class TaskAttachment:
 @app.route('/upload_attachment/<task_id>', methods=['POST'])
 @login_required
 def upload_attachment(task_id):
-    task = mongo.db.tasks.find_one({'_id': ObjectId(task_id)})
+    task = db.tasks.find_one({'_id': ObjectId(task_id)})
     if 'file' in request.files:
         file = request.files['file']
         if file.filename != '':
@@ -312,10 +403,10 @@ def upload_attachment(task_id):
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             new_attachment = TaskAttachment(filename=filename, filepath=filepath)
-            task_attachments = mongo.db.tasks.find_one({'_id': ObjectId(task_id)}, {'attachments': 1})
+            task_attachments = db.tasks.find_one({'_id': ObjectId(task_id)}, {'attachments': 1})
             attachments = task_attachments.get('attachments', [])
             attachments.append(new_attachment)
-            mongo.db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'attachments': attachments}})
+            db.tasks.update_one({'_id': ObjectId(task_id)}, {'$set': {'attachments': attachments}})
             flash('Attachment uploaded successfully.', 'success')
         else:
             flash('No file selected.', 'warning')
@@ -340,7 +431,7 @@ def internal_error(error):
 def dashboard_pagination():
     page = request.args.get('page', 1, type=int)
     skip = (page - 1) * 10
-    user_tasks = mongo.db.tasks.find({'assignee_id': str(current_user.get_id())}).skip(skip).limit(10)
+    user_tasks = db.tasks.find({'assignee_id': str(current_user.get_id())}).skip(skip).limit(10)
     return render_template('dashboard.html', tasks=user_tasks)
 
 class FlaskTestCase(unittest.TestCase):
@@ -373,14 +464,14 @@ class FlaskTestCase(unittest.TestCase):
 @app.route('/delete_team/<team_id>', methods=['POST'])
 @login_required
 def delete_team(team_id):
-    mongo.db.teams.delete_one({'_id': ObjectId(team_id)})
+    db.teams.delete_one({'_id': ObjectId(team_id)})
     flash('Team has been deleted!', 'success')
     return redirect(url_for('team_management'))
 
 @app.route('/team_management')
 @login_required
 def team_management():
-    teams = mongo.db.teams.find()
+    teams = db.teams.find()
     return render_template('team_management.html', teams=teams)
 
 def generate_otp(length=6):

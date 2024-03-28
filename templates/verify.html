@@ -5,20 +5,90 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Email Verification</title>
+    <!-- Add Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-    <h2>Email Verification</h2>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    <form method="POST" action="{{ url_for('verify') }}">
-        <label for="otp">Enter OTP:</label><br>
-        <input type="text" id="otp" name="otp" required><br>
-        <button type="submit">Verify</button>
-    </form>
+<body class="bg-gray-100">
+    <header class="bg-white shadow-md py-4">
+        <div class="container mx-auto flex items-center justify-between px-4">
+            <!-- CollabTask Logo -->
+            <a href="/" class="flex items-center">
+                <img src="./static/logo.png" alt="CollabTask" class="h-10 w-auto mr-2">
+                <h1 class="text-lg font-bold">CollabTask</h1>
+            </a>
+            <!-- Navigation Links -->
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="/login" class="text-gray-700 hover:text-blue-500">Login</a></li>
+                    <li><a href="/signup" class="text-gray-700 hover:text-blue-500">Register</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    <main class="container mx-auto mt-8 px-4 py-4">
+        <h2 class="text-2xl font-bold mb-4">Email Verification</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} mb-4">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="POST" action="{{ url_for('verify') }}" id="verify-form">
+            <div class="mb-4">
+                <label for="otp" class="block font-medium mb-1">Enter OTP:</label>
+                <input type="text" id="otp" name="otp" required class="border border-gray-400 p-2 w-full">
+            </div>
+            <div class="mb-4">
+                <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">Verify</button>
+                <button type="button" id="resend-otp-btn" class="ml-2 text-blue-500 hover:underline">Resend OTP</button>
+            </div>
+        </form>
+    </main>
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-wrap justify-between items-center">
+                <!-- CollabTask Logo -->
+                <div>
+                    <img src="./static/logo.png" alt="CollabTask" class="h-10 w-auto mr-2">
+                    <h1 class="text-lg font-bold">CollabTask</h1>
+                </div>
+                <!-- Navigation Links -->
+                <nav>
+                    <ul class="flex space-x-4 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-white">Terms of Service</a></li>
+                        <li><a href="#" class="hover:text-white">Contact Us</a></li>
+                    </ul>
+                </nav>
+            </div>
+            <p class="text-center text-gray-400 mt-4">&copy; 2024 CollabTask. All rights reserved.</p>
+        </div>
+    </footer>
+    <!-- Add jQuery CDN -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Add custom script for resending OTP -->
+    <script>
+        $(document).ready(function() {
+            $('#resend-otp-btn').click(function() {
+                // Send AJAX request to resend OTP
+                $.ajax({
+                    url: '{{ url_for("resend_otp") }}',
+                    type: 'POST',
+                    data: {
+                        'email': '{{ session["signup_email"] }}'
+                    },
+                    success: function(response) {
+                        // Display success message
+                        alert(response.message);
+                    },
+                    error: function(error) {
+                        // Display error message
+                        alert('Error resending OTP. Please try again later.');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
