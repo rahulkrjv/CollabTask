@@ -36,6 +36,7 @@
                         {% endfor %}
                     {% endif %}
                 {% endwith %}
+                <div class="bg-red-100">
                 <form method="POST" action="{{ url_for('login') }}">
                     <div class="mb-4">
                         <label for="email" class="block font-medium mb-1">Email:</label>
@@ -47,9 +48,17 @@
                     </div>
                     <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 w-full">Login</button>
                 </form>
+                </div>
             </div>
         </div>
     </main>
+    <br>
+    <br>
+    <br>
+    <br>
+    <br>
+    <br>
+    
     <footer class="bg-gray-800 text-white py-8">
         <div class="container mx-auto px-4">
             <div class="flex flex-wrap justify-between items-center">
