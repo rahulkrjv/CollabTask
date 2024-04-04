@@ -1,12 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Team Management</title>
+    <title>Sign Up</title>
+    <!-- Include Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body>
+    <header class="bg-white shadow-md py-4">
+        <div class="container mx-auto flex items-center justify-between px-4">
+            <!-- CollabTask Logo -->
+            <a href="/" class="flex items-center">
+                <img src="./static/logo.png" alt="CollabTask" class="h-10 w-auto mr-2">
+                <h1 class="text-lg font-bold">CollabTask</h1>
+            </a>
+            <!-- Navigation Links -->
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="/signup" class="text-gray-700 hover:text-blue-500">Home</a></li>
+                   
+                </ul>
+            </nav>
+        </div>
+    </header>
     <h2>Team Management</h2>
     {% for team in teams %}
         <div class="team">
@@ -17,5 +36,32 @@
             </form>
         </div>
     {% endfor %}
+    <br>
+    <br>
+    <br>
+    <br>
+    <br>
+    <br><br><br><br><br><br>
+    <br><br><br><br><br><br>
+    <footer class="bg-gray-800 text-white py-2">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-wrap justify-between items-center">
+                <!-- CollabTask Logo -->
+                <div>
+                    <img src="./static/logo.png" alt="CollabTask" class="h-10 w-auto mr-2">
+                    <h1 class="text-lg font-bold">CollabTask</h1>
+                </div>
+                <!-- Navigation Links -->
+                <nav>
+                    <ul class="flex space-x-4 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-white">Terms of Service</a></li>
+                        <li><a href="#" class="hover:text-white">Contact Us</a></li>
+                    </ul>
+                </nav>
+                <p class="text-center text-gray-400 mt-4">&copy; 2024 CollabTask. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
 </body>
 </html>
