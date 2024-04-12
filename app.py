@@ -13,11 +13,11 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, SelectField, EmailField, DateField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo
 from functools import wraps
-from flask import abort
 import os
 from werkzeug.utils import secure_filename
 from pytz import utc
 import email_validator
+from itsdangerous import URLSafeTimedSerializer
 
 app = Flask(__name__)
 
@@ -25,12 +25,12 @@ app = Flask(__name__)
 with open('config.json') as f:
     params = json.load(f)['param']
 
-app.config['SECRET_KEY'] = params['SECRET_KEY']
+SECRET_KEY = app.config['SECRET_KEY'] = params['SECRET_KEY']
 app.config['MONGO_URI'] = params['MONGO_URI']
 app.config['MAIL_SERVER'] = params['MAIL_SERVER']
 app.config['MAIL_PORT'] = params['MAIL_PORT']
 app.config['MAIL_USE_TLS'] = params['MAIL_USE_TLS']
-app.config['MAIL_USERNAME'] = params['gmail-user']
+sender = app.config['MAIL_USERNAME'] = params['gmail-user']
 app.config['MAIL_PASSWORD'] = params['gmail-password']
 
 mongo = PyMongo(app)
@@ -83,11 +83,28 @@ class ResetPasswordRequestForm(FlaskForm):
     submit = SubmitField('Request Password Reset')
 
 def send_password_reset_email(user_email):
-    # Your logic to send the password reset email goes here
-    pass
+    user = db.users.find_one({'email': user_email})
+    if not user:
+        return
+
+    s = URLSafeTimedSerializer(SECRET_KEY)
+    user_id = str(user['_id'])
+    token = s.dumps((user_id), salt='password-reset')
+
+    expires = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+    token = f"{token}.{int(expires.timestamp())}"
+
+    msg = Message('Password Reset Request', sender=sender, recipients=[user_email])
+    msg.body = f'''To reset your password, visit the following link:
+{url_for('reset_password', token=token, _external=True)}
+
+If you did not make this request, simply ignore this email and no changes will be made.
+'''
+    mail.send(msg)
 
 class ResetPasswordForm(FlaskForm):
-    password = PasswordField('Password', validators=[DataRequired(), EqualTo('confirm_password')])
+    # csrf_token = CSRFTokenField('csrf_token')
+    password = PasswordField('new_password', validators=[DataRequired(), EqualTo('confirm_password')])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired()])
     submit = SubmitField('Reset Password')
 
@@ -131,7 +148,7 @@ def signup():
                 }})
 
                 # Send OTP via email
-                msg = Message('Verify Your Email', sender=app.config['MAIL_USERNAME'], recipients=[email])
+                msg = Message('Verify Your Email', sender=sender, recipients=[email])
                 msg.body = f'Your OTP for verification: {otp}'
                 mail.send(msg)
                 session['expiry_time'] = utc.localize(datetime.datetime.utcnow()) + datetime.timedelta(minutes=5)
@@ -251,7 +268,6 @@ def create_task():
             flash('Task has been created!', 'success')
             return redirect(url_for('dashboard'))
         except Exception as e:
-            print(e)
             flash('Error creating task', 'danger')
     return render_template('create_task.html', form=form, users=users)
 
@@ -300,28 +316,50 @@ def reset_password_request():
     #     return redirect(url_for('index'))
     form = ResetPasswordRequestForm()
     if form.validate_on_submit():
-        user = db.users.find_one({'email': form.email.data})
-        if user:
-            send_password_reset_email(user)
-        flash('Check your email for the instructions to reset your password', 'info')
-        return redirect(url_for('login'))
+        # user = db.users.find_one({'email': form.email.data})
+        # if user:
+        #     send_password_reset_email(user['email'])
+        # flash('Check your email for the instructions to reset your password', 'info')
+        # return redirect(url_for('/', token=token))
+        send_password_reset_email(form.email.data)
     return render_template('reset_password_request.html', title='Reset Password', form=form)
 
 # Route for password reset
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
-    if current_user.is_authenticated:
+    s = URLSafeTimedSerializer(SECRET_KEY)
+    print("Token: ",token)
+    try:
+        # Split the token into the serialized user ID and the expiry time
+        token_parts = token.split('.')
+
+        # Get the user_id and expiry_time
+        user_id = '.'.join(token_parts[:-1])
+        expires = token_parts[-1]
+
+        user_id = ObjectId(s.loads(user_id, salt='password-reset'))
+        # print("User Id: ", user_id)
+
+        user = db.users.find_one({'_id': user_id})
+
+        if not user:
+            return redirect(url_for('index'))
+
+        form = ResetPasswordForm()
+        if form.validate_on_submit():
+            print("Form is valid")
+            hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+            db.users.update_one({'_id': user_id}, {'$set': {'password': hashed_password}})
+            flash('Your password has been reset.', 'success')
+            return redirect(url_for('login'))
+        else:
+            print(form.data)
+            print(form.errors)
+        return render_template('reset_password.html', form=form, token=token)
+    except Exception as e:
+        print("Error: %s" % e)
+        flash("Error: %s" % e)
         return redirect(url_for('index'))
-    user = User.verify_reset_password_token(token)
-    if not user:
-        return redirect(url_for('index'))
-    form = ResetPasswordForm()
-    if form.validate_on_submit():
-        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
-        db.users.update_one({'_id': ObjectId(user.get_id())}, {'$set': {'password': hashed_password}})
-        flash('Your password has been reset.', 'success')
-        return redirect(url_for('login'))
-    return render_template('reset.html', form=form)
 
 # Task Search
 @app.route('/search', methods=['GET', 'POST'])
